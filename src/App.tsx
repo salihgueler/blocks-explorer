@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { CSSProperties, useEffect, useState, useCallback, useRef } from "react";
 import { api, authApi } from "aws-blocks";
 import { AccountMenuBar, onAuthChange } from "@aws-blocks/blocks/ui";
 
@@ -51,9 +51,42 @@ function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : "Something went wrong";
 }
 
+// ─── Theme ──────────────────────────────────────────────────────────────────────
+// Single source of truth for the brand palette. Mirrors the CSS variables in
+// index.html so inline styles (and gradients) can reference concrete values.
+const theme = {
+  coral: "#FF5A5F",
+  coralDark: "#E54A4F",
+  teal: "#00C2C3",
+  tealDark: "#00A3A4",
+  yellow: "#FFD151",
+  lilac: "#E0B0FF",
+  slate: "#2F4F4F",
+  panel: "#244040",
+  panel2: "#2C4D4D",
+  panelRaised: "#36595A",
+  border: "rgba(255,255,255,0.10)",
+  borderStrong: "rgba(255,255,255,0.18)",
+  text: "#EEF5F4",
+  textMuted: "#9FBCBB",
+} as const;
+
+const card = {
+  background: `linear-gradient(180deg, ${theme.panel2}, ${theme.panel})`,
+  border: `1px solid ${theme.border}`,
+  borderRadius: 16,
+  boxShadow: "0 18px 40px rgba(0,0,0,0.28)",
+} as const;
+
+// Layout-only styles for the large call-to-action buttons; color/hover come
+// from the .btn-* utility classes defined in index.html.
+const actionButton = { padding: "13px 30px", fontSize: "1.05rem" } as const;
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [view, setView] = useState<"game" | "leaderboard">("game");
+  const [lbRefresh, setLbRefresh] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,77 +100,200 @@ export function App() {
   }, []);
 
   return (
-    <div
-      style={{
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        maxWidth: 1200,
-        margin: "0 auto",
-        padding: "0 20px",
-      }}
-    >
-      <header
+    <>
+      <BackgroundDecor />
+      <div
+        className="app-shell"
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "12px 0",
-          borderBottom: "1px solid #eee",
+          fontFamily: "'Open Sans', system-ui, -apple-system, sans-serif",
+          color: theme.text,
         }}
       >
-        <h1 style={{ margin: 0, fontSize: "1.5rem" }}>🌍 BlocksExplorer</h1>
-        <div ref={menuRef} />
-      </header>
-      {!user && (
-        <div style={{ textAlign: "center", padding: "80px 20px" }}>
-          <p style={{ fontSize: "1.2rem", color: "#666" }}>
-            Sign in to start playing!
-          </p>
-        </div>
-      )}
-      {user && <GameApp user={user} />}
+        <header className="topbar">
+          <Brand />
+          {user && (
+            <nav className="topnav">
+              <button
+                onClick={() => setView("game")}
+                className={`tab ${view === "game" ? "is-active" : ""}`}
+              >
+                Play
+              </button>
+              <button
+                onClick={() => setView("leaderboard")}
+                className={`tab ${view === "leaderboard" ? "is-active" : ""}`}
+              >
+                Leaderboard
+              </button>
+            </nav>
+          )}
+          <div
+            ref={menuRef}
+            className="account-menu"
+            style={{ marginLeft: user ? 0 : "auto" }}
+          />
+        </header>
+        {!user && <SignedOut />}
+        {user && view === "game" && (
+          <GameScreen
+            onSessionComplete={() => setLbRefresh((v) => v + 1)}
+            onGoToLeaderboard={() => setView("leaderboard")}
+          />
+        )}
+        {user && view === "leaderboard" && (
+          <Leaderboard currentUser={user.username} refreshKey={lbRefresh} />
+        )}
+      </div>
+    </>
+  );
+}
+
+// ─── Decorative travel-collage frame behind the floating app panel ──────────────
+function BackgroundDecor() {
+  const marks: { e: string; s: CSSProperties }[] = [
+    { e: "🗼", s: { top: "5%", left: "2.5%", fontSize: 132 } },
+    { e: "🌉", s: { top: "4%", right: "3%", fontSize: 150 } },
+    { e: "🎡", s: { top: "12%", right: "21%", fontSize: 86 } },
+    { e: "🕌", s: { top: "41%", left: "1%", fontSize: 104 } },
+    { e: "🏛️", s: { top: "45%", right: "1.5%", fontSize: 104 } },
+    { e: "🔺", s: { bottom: "7%", left: "5%", fontSize: 120 } },
+    { e: "🗽", s: { bottom: "11%", left: "23%", fontSize: 96 } },
+    { e: "⛰️", s: { bottom: "5%", right: "4.5%", fontSize: 128 } },
+  ];
+  return (
+    <div className="bg-decor" aria-hidden="true">
+      {marks.map((m, i) => (
+        <span key={i} style={m.s}>
+          {m.e}
+        </span>
+      ))}
     </div>
   );
 }
 
-// ─── Game shell ─────────────────────────────────────────────────────────────────
-function GameApp({ user }: { user: User }) {
-  const [view, setView] = useState<"game" | "leaderboard">("game");
-  const [lbRefresh, setLbRefresh] = useState(0);
-
-  const tabStyle = (active: boolean) => ({
-    fontWeight: active ? ("bold" as const) : ("normal" as const),
-    padding: "8px 16px",
-    borderRadius: 6,
-    border: active ? "2px solid #10b981" : "1px solid #ddd",
-    background: active ? "#ecfdf5" : "white",
-    cursor: "pointer",
-  });
-
+// ─── Brand mark ─────────────────────────────────────────────────────────────────
+function Brand() {
   return (
-    <div>
-      <nav style={{ display: "flex", gap: 8, padding: "16px 0" }}>
-        <button
-          onClick={() => setView("game")}
-          style={tabStyle(view === "game")}
+    <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+      <span
+        aria-hidden
+        style={{
+          display: "grid",
+          placeItems: "center",
+          width: 46,
+          height: 46,
+          borderRadius: 14,
+          fontSize: "1.6rem",
+          background: `linear-gradient(135deg, ${theme.coral}, ${theme.yellow})`,
+          boxShadow: "0 8px 20px rgba(255,90,95,0.35)",
+        }}
+      >
+        🧭
+      </span>
+      <div style={{ lineHeight: 1 }}>
+        <div
+          style={{
+            fontFamily: "'Montserrat', sans-serif",
+            fontWeight: 800,
+            fontSize: "1.25rem",
+            letterSpacing: "0.04em",
+          }}
         >
-          🎮 Play
-        </button>
-        <button
-          onClick={() => setView("leaderboard")}
-          style={tabStyle(view === "leaderboard")}
+          GLOBETROTTER
+        </div>
+        <div
+          style={{
+            marginTop: 5,
+            fontFamily: "'Montserrat', sans-serif",
+            fontWeight: 800,
+            fontSize: "1.25rem",
+            letterSpacing: "0.04em",
+            color: theme.coral,
+          }}
         >
-          🏆 Leaderboard
-        </button>
-      </nav>
-      {view === "game" && (
-        <GameScreen
-          onSessionComplete={() => setLbRefresh((v) => v + 1)}
-          onGoToLeaderboard={() => setView("leaderboard")}
-        />
-      )}
-      {view === "leaderboard" && (
-        <Leaderboard currentUser={user.username} refreshKey={lbRefresh} />
-      )}
+          BLITZ
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── How-to-play cards (colorful cards — mirrors the reference UI) ──────────────
+function ModesSection() {
+  const steps: { label: string; text: string; cls: string; emoji: string }[] = [
+    {
+      label: "Read the Photo",
+      text: "Study the scene for clues — signs, scenery, architecture.",
+      cls: "coral",
+      emoji: "📸",
+    },
+    {
+      label: "Drop a Pin",
+      text: "Click the world map where you think the photo was taken.",
+      cls: "teal",
+      emoji: "📍",
+    },
+    {
+      label: "Score Points",
+      text: "The closer your guess, the more points you earn.",
+      cls: "yellow",
+      emoji: "🎯",
+    },
+    {
+      label: "Climb the Board",
+      text: "Beat your best session and top the leaderboard.",
+      cls: "lilac",
+      emoji: "🏆",
+    },
+  ];
+  return (
+    <section className="modes-section">
+      <h3 className="modes-title">HOW TO PLAY</h3>
+      <div className="modes-grid">
+        {steps.map((s) => (
+          <div key={s.label} className={`mode-card ${s.cls}`}>
+            {s.label}
+            <p className="mode-text">{s.text}</p>
+            <span className="mode-emoji" aria-hidden>
+              {s.emoji}
+            </span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── Signed-out splash — playful, animated hero ─────────────────────────────────
+function SignedOut() {
+  return (
+    <div className="hero">
+      <div className="hero-main">
+        <div className="hero-globe" aria-hidden>
+          🌍
+          <span className="hero-pin hero-pin-1">📍</span>
+          <span className="hero-pin hero-pin-2">✈️</span>
+          <span className="hero-pin hero-pin-3">🧭</span>
+        </div>
+        <div className="hero-copy">
+          <span className="hero-eyebrow">5 ROUNDS · ONE WORLD</span>
+          <h2 className="hero-title">
+            Guess where on Earth
+            <br />
+            the photo was taken
+          </h2>
+          <p className="hero-sub">
+            A fast-paced photo challenge. Spot the location, drop a pin, and
+            race the clock to climb the leaderboard.
+          </p>
+          <div className="hero-cta">
+            <span className="hero-cta-pill">
+              👉 Hit <strong>Sign In</strong> up top to play
+            </span>
+          </div>
+        </div>
+      </div>
+      <ModesSection />
     </div>
   );
 }
@@ -213,29 +369,72 @@ function GameScreen({
   // ── Idle: start screen ──
   if (!sessionId || !round) {
     return (
-      <div style={{ textAlign: "center", padding: "60px 20px" }}>
-        <h2 style={{ fontSize: "2rem", marginBottom: 8 }}>🌍 BlocksExplorer</h2>
-        <p style={{ color: "#666", marginBottom: 24 }}>
+      <>
+      <div
+        style={{
+          ...card,
+          textAlign: "center",
+          padding: "56px 28px",
+          maxWidth: 620,
+          margin: "8px auto 0",
+        }}
+      >
+        <div style={{ fontSize: "3rem" }}>🌍</div>
+        <h2
+          style={{
+            fontFamily: "'Montserrat', sans-serif",
+            fontSize: "2rem",
+            margin: "8px 0",
+          }}
+        >
+          Ready to explore?
+        </h2>
+        <p
+          style={{
+            color: theme.textMuted,
+            marginBottom: 24,
+            lineHeight: 1.6,
+          }}
+        >
           Five rounds. Guess each location from its photo — the closer you are,
           the more points you score.
         </p>
-        {error && <p style={{ color: "#dc2626", marginBottom: 16 }}>{error}</p>}
+        {error && (
+          <p style={{ color: theme.coral, marginBottom: 16 }}>{error}</p>
+        )}
         <button
           onClick={startSession}
           disabled={isLoading}
-          style={primaryButton(!isLoading)}
+          className="btn-coral"
+          style={actionButton}
         >
           {isLoading ? "Loading..." : "Start Game"}
         </button>
       </div>
+      <ModesSection />
+      </>
     );
   }
 
   // ── Summary: end-of-session screen ──
   if (showSummary && result?.completed) {
     return (
-      <div style={{ textAlign: "center", padding: "48px 20px" }}>
-        <h2 style={{ fontSize: "1.75rem", marginBottom: 4 }}>
+      <div
+        style={{
+          ...card,
+          textAlign: "center",
+          padding: "48px 28px",
+          maxWidth: 620,
+          margin: "8px auto 0",
+        }}
+      >
+        <h2
+          style={{
+            fontFamily: "'Montserrat', sans-serif",
+            fontSize: "1.8rem",
+            marginBottom: 4,
+          }}
+        >
           Session complete! 🎉
         </h2>
         {result.newBest && (
@@ -243,10 +442,11 @@ function GameScreen({
             style={{
               display: "inline-block",
               margin: "12px 0",
-              padding: "6px 14px",
+              padding: "6px 16px",
               borderRadius: 999,
-              background: "#fef3c7",
-              color: "#92400e",
+              background: "rgba(255,209,81,0.16)",
+              border: "1px solid rgba(255,209,81,0.5)",
+              color: theme.yellow,
               fontWeight: 700,
             }}
           >
@@ -255,15 +455,16 @@ function GameScreen({
         )}
         <div
           style={{
-            fontSize: "3rem",
+            fontSize: "3.4rem",
             fontWeight: 800,
-            color: "#059669",
+            fontFamily: "'Montserrat', sans-serif",
+            color: theme.teal,
             margin: "8px 0",
           }}
         >
           {(result.finalScore ?? 0).toLocaleString()}
         </div>
-        <p style={{ color: "#374151", fontSize: "1.1rem" }}>
+        <p style={{ color: theme.textMuted, fontSize: "1.1rem" }}>
           points in {result.totalGuesses ?? round.totalRounds} guesses
         </p>
         <div
@@ -272,16 +473,22 @@ function GameScreen({
             gap: 12,
             justifyContent: "center",
             marginTop: 24,
+            flexWrap: "wrap",
           }}
         >
           <button
             onClick={startSession}
             disabled={isLoading}
-            style={primaryButton(!isLoading)}
+            className="btn-coral"
+            style={actionButton}
           >
             {isLoading ? "Loading..." : "Play again"}
           </button>
-          <button onClick={onGoToLeaderboard} style={secondaryButton}>
+          <button
+            onClick={onGoToLeaderboard}
+            className="btn-ghost"
+            style={actionButton}
+          >
             🏆 View leaderboard
           </button>
         </div>
@@ -293,51 +500,171 @@ function GameScreen({
   const runningScore = progress?.accumulatedScore ?? 0;
   return (
     <div style={{ marginTop: 8 }}>
-      <SessionHeader round={round} runningScore={runningScore} />
-      {error && <p style={{ color: "#dc2626" }}>{error}</p>}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 24,
-          marginTop: 12,
-        }}
-      >
-        {/* Left: Image */}
+      {error && <p style={{ color: theme.coral }}>{error}</p>}
+      <div className="game-grid">
+        {/* Left: Photo stage with the round info overlaid on top */}
         <div>
           <div
+            className="stage"
             style={{
-              borderRadius: 12,
+              ...card,
+              padding: 0,
+              position: "relative",
               overflow: "hidden",
-              border: "1px solid #e5e7eb",
-              aspectRatio: "4/3",
+              aspectRatio: "16 / 11",
             }}
           >
-            <img
-              src={round.imageUrl}
-              alt="Where is this?"
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            {/* The location photo, now a full-bleed background */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                backgroundImage: `url(${round.imageUrl})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }}
             />
+            {/* Scrim so the overlay card stays legible over bright photos */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background:
+                  "linear-gradient(105deg, rgba(8,16,16,0.62) 0%, rgba(8,16,16,0.12) 45%, rgba(8,16,16,0) 70%)",
+              }}
+            />
+            {/* Overlaid round-info card (top-left) */}
+            <div
+              style={{
+                position: "absolute",
+                top: 16,
+                left: 16,
+                width: 200,
+                background: "rgba(11,21,21,0.86)",
+                backdropFilter: "blur(6px)",
+                border: `1px solid ${theme.borderStrong}`,
+                borderRadius: 14,
+                padding: "14px 16px",
+                boxShadow: "0 14px 32px rgba(0,0,0,0.45)",
+              }}
+            >
+              <div
+                style={{
+                  fontFamily: "'Montserrat', sans-serif",
+                  fontWeight: 800,
+                  fontSize: "0.95rem",
+                  letterSpacing: "0.04em",
+                  color: "#fff",
+                  marginBottom: 14,
+                }}
+              >
+                ROUND {round.roundNumber} / {round.totalRounds}
+              </div>
+              <div style={{ display: "grid", gap: 12 }}>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "0.62rem",
+                      fontWeight: 700,
+                      letterSpacing: "0.14em",
+                      color: theme.textMuted,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Current map:
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "'Montserrat', sans-serif",
+                      fontWeight: 800,
+                      fontSize: "1.1rem",
+                      color: "#fff",
+                      marginTop: 2,
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    {result?.actual?.country ?? "?????"}
+                  </div>
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "0.62rem",
+                      fontWeight: 700,
+                      letterSpacing: "0.14em",
+                      color: theme.textMuted,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Points:
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "'Montserrat', sans-serif",
+                      fontWeight: 800,
+                      fontSize: "1.1rem",
+                      color: "#fff",
+                      marginTop: 2,
+                    }}
+                  >
+                    {runningScore.toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "0.62rem",
+                      fontWeight: 700,
+                      letterSpacing: "0.14em",
+                      color: theme.textMuted,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Guesses left:
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "'Montserrat', sans-serif",
+                      fontWeight: 800,
+                      fontSize: "1.1rem",
+                      color: "#fff",
+                      marginTop: 2,
+                    }}
+                  >
+                    {(round.totalRounds - round.roundNumber) +
+                      (result ? 0 : 1)}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Fullscreen icon (top-right, decorative) */}
+            <button
+              type="button"
+              className="icon-btn"
+              style={{ position: "absolute", top: 16, right: 16 }}
+              aria-label="Fullscreen"
+              onClick={(e) => {
+                const el = (e.currentTarget.closest(".stage") ||
+                  null) as HTMLElement | null;
+                if (!el) return;
+                if (document.fullscreenElement) document.exitFullscreen();
+                else el.requestFullscreen?.();
+              }}
+            >
+              ⛶
+            </button>
           </div>
-          <p
-            style={{
-              marginTop: 12,
-              padding: "12px 16px",
-              background: "#f9fafb",
-              borderRadius: 8,
-              fontSize: "0.9rem",
-            }}
-          >
-            💡 <strong>Hint:</strong> {round.hint}
-          </p>
+          <ProgressStrip
+            roundNumber={round.roundNumber}
+            totalRounds={round.totalRounds}
+          />
           {result && (
             <div
               style={{
-                marginTop: 12,
+                ...card,
+                marginTop: 14,
                 padding: 16,
-                background: "#ecfdf5",
-                border: "1px solid #a7f3d0",
-                borderRadius: 8,
+                border: "1px solid rgba(0,194,195,0.4)",
               }}
             >
               <div
@@ -349,29 +676,30 @@ function GameScreen({
               >
                 <span
                   style={{
-                    fontSize: "1.5rem",
-                    fontWeight: 700,
-                    color: "#059669",
+                    fontSize: "1.6rem",
+                    fontWeight: 800,
+                    fontFamily: "'Montserrat', sans-serif",
+                    color: theme.teal,
                   }}
                 >
                   {result.score} / {result.maxScore}
                 </span>
-                <span style={{ color: "#666" }}>
+                <span style={{ color: theme.textMuted }}>
                   {result.distanceKm < 1
                     ? `${Math.round(result.distanceKm * 1000)}m`
                     : `${result.distanceKm.toLocaleString()} km`}{" "}
                   away
                 </span>
               </div>
-              <p style={{ margin: "8px 0 0", color: "#374151" }}>
+              <p style={{ margin: "8px 0 0", color: theme.text }}>
                 📍 {result.actual.label}
               </p>
               <div
                 style={{
-                  marginTop: 8,
-                  height: 8,
-                  background: "#d1d5db",
-                  borderRadius: 4,
+                  marginTop: 10,
+                  height: 10,
+                  background: "rgba(255,255,255,0.12)",
+                  borderRadius: 999,
                   overflow: "hidden",
                 }}
               >
@@ -379,9 +707,8 @@ function GameScreen({
                   style={{
                     height: "100%",
                     width: `${Math.round((result.score / result.maxScore) * 100)}%`,
-                    background:
-                      "linear-gradient(to right, #ef4444, #eab308, #10b981)",
-                    borderRadius: 4,
+                    background: `linear-gradient(to right, ${theme.coral}, ${theme.yellow}, ${theme.teal})`,
+                    borderRadius: 999,
                     transition: "width 0.7s ease",
                   }}
                 />
@@ -398,125 +725,81 @@ function GameScreen({
             actual={result?.actual || null}
             locked={!!result}
           />
-          <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+          <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
             {!result ? (
               <button
                 onClick={submitGuess}
                 disabled={!guess || isLoading}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: guess ? "#10b981" : "#d1d5db",
-                  color: "white",
-                  cursor: guess ? "pointer" : "not-allowed",
-                  fontWeight: 600,
-                  fontSize: "1rem",
-                }}
+                className="btn-teal"
+                style={{ flex: 1, padding: "14px", fontSize: "1.02rem" }}
               >
                 {isLoading
                   ? "Submitting..."
                   : guess
-                    ? "Submit Guess"
+                    ? "Guess Location"
                     : "Click the map to guess"}
               </button>
             ) : (
               <button
                 onClick={advance}
-                style={{
-                  flex: 1,
-                  padding: "12px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "#10b981",
-                  color: "white",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                  fontSize: "1rem",
-                }}
+                className="btn-coral"
+                style={{ flex: 1, padding: "14px", fontSize: "1.02rem" }}
               >
                 {result.completed ? "See Results →" : "Next Round →"}
               </button>
             )}
           </div>
+          <TipCard text={round.hint} />
         </div>
       </div>
+      <ModesSection />
     </div>
   );
 }
 
-// ─── Session header: round progress + running score ─────────────────────────────
-function SessionHeader({
-  round,
-  runningScore,
-}: {
-  round: PublicRound;
-  runningScore: number;
-}) {
+// ─── Tip of the day card (yellow) — surfaces the round's hint ───────────────────
+function TipCard({ text }: { text: string }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "10px 16px",
-        background: "#f9fafb",
-        borderRadius: 8,
-        border: "1px solid #eee",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <strong style={{ fontSize: "1.05rem" }}>
-          Round {round.roundNumber} of {round.totalRounds}
-        </strong>
-        <span style={{ display: "flex", gap: 4 }}>
-          {Array.from({ length: round.totalRounds }, (_, i) => (
-            <span
-              key={i}
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 999,
-                background: i < round.roundNumber ? "#10b981" : "#d1d5db",
-              }}
-            />
-          ))}
-        </span>
-      </div>
-      <span style={{ color: "#374151" }}>
-        Score:{" "}
-        <strong style={{ color: "#059669", fontFamily: "monospace" }}>
-          {runningScore.toLocaleString()}
-        </strong>
-      </span>
+    <div className="tip-yellow" style={{ marginTop: 14 }}>
+      <div className="tip-head">💡 Tip of the Day</div>
+      <p>{text}</p>
     </div>
   );
 }
 
-// ─── Button styles ──────────────────────────────────────────────────────────────
-function primaryButton(enabled: boolean) {
-  return {
-    padding: "12px 32px",
-    fontSize: "1.1rem",
-    borderRadius: 8,
-    border: "none",
-    background: enabled ? "#10b981" : "#9ca3af",
-    color: "white",
-    cursor: enabled ? "pointer" : "not-allowed",
-    fontWeight: 600,
-  } as const;
+// ─── Progress + countdown strip beneath the photo ───────────────────────────────
+function ProgressStrip({
+  roundNumber,
+  totalRounds,
+}: {
+  roundNumber: number;
+  totalRounds: number;
+}) {
+  const [seconds, setSeconds] = useState(154); // 02:34 like the reference
+  useEffect(() => {
+    setSeconds(154);
+    const id = window.setInterval(() => {
+      setSeconds((s) => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [roundNumber]);
+  const mm = Math.floor(seconds / 60)
+    .toString()
+    .padStart(2, "0");
+  const ss = (seconds % 60).toString().padStart(2, "0");
+  const pct = Math.round((roundNumber / totalRounds) * 100);
+  return (
+    <div className="progress-strip">
+      <div className="progress-track">
+        <div className="progress-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="time-left">
+        <small>Time Left:</small>
+        {mm}:{ss}
+      </div>
+    </div>
+  );
 }
-const secondaryButton = {
-  padding: "12px 24px",
-  fontSize: "1.1rem",
-  borderRadius: 8,
-  border: "1px solid #d1d5db",
-  background: "white",
-  color: "#374151",
-  cursor: "pointer",
-  fontWeight: 600,
-} as const;
 
 // ─── Map Input (click-to-select using Leaflet on window.L) ──────────────────────
 function MapClickInput({
@@ -619,16 +902,40 @@ function MapClickInput({
   }, [actual]);
 
   return (
-    <div
-      ref={mapRef}
-      style={{
-        width: "100%",
-        height: 400,
-        borderRadius: 12,
-        border: "1px solid #e5e7eb",
-        overflow: "hidden",
-      }}
-    />
+    <div style={{ ...card, padding: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 8,
+          margin: "2px 4px 10px",
+        }}
+      >
+        <h3
+          style={{
+            margin: 0,
+            fontSize: "0.95rem",
+            letterSpacing: "0.06em",
+          }}
+        >
+          📍 DROP A PIN
+        </h3>
+        <span style={{ fontSize: "0.78rem", color: theme.textMuted }}>
+          Click the panorama location
+        </span>
+      </div>
+      <div
+        ref={mapRef}
+        style={{
+          width: "100%",
+          height: 380,
+          borderRadius: 10,
+          border: `1px solid ${theme.border}`,
+          overflow: "hidden",
+        }}
+      />
+    </div>
   );
 }
 
@@ -654,70 +961,123 @@ function Leaderboard({
       .catch(() => setIsLoading(false));
   }, [refreshKey]);
 
-  if (isLoading) return <p>Loading leaderboard...</p>;
+  if (isLoading)
+    return (
+      <div
+        style={{
+          ...card,
+          maxWidth: 720,
+          margin: "8px auto 0",
+          padding: 32,
+          textAlign: "center",
+          color: theme.textMuted,
+        }}
+      >
+        Loading leaderboard...
+      </div>
+    );
   if (entries.length === 0)
     return (
-      <p style={{ textAlign: "center", padding: 40, color: "#666" }}>
+      <div
+        style={{
+          ...card,
+          maxWidth: 720,
+          margin: "8px auto 0",
+          padding: 40,
+          textAlign: "center",
+          color: theme.textMuted,
+        }}
+      >
         🏆 No scores yet. Be the first to play!
-      </p>
+      </div>
     );
 
   return (
-    <div style={{ maxWidth: 640, margin: "0 auto" }}>
-      <h2>🏆 Leaderboard</h2>
-      <p style={{ color: "#6b7280", marginTop: -8 }}>
-        Each player's best session.
-      </p>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr style={{ borderBottom: "2px solid #e5e7eb", textAlign: "left" }}>
-            <th style={{ padding: 8, width: 48 }}>#</th>
-            <th style={{ padding: 8 }}>Player</th>
-            <th style={{ padding: 8, textAlign: "right" }}>Best session</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((e, i) => {
-            const isYou = e.username === currentUser;
-            return (
-              <tr
-                key={e.username}
-                style={{
-                  borderBottom: "1px solid #f3f4f6",
-                  background: isYou ? "#ecfdf5" : "transparent",
-                }}
-              >
-                <td style={{ padding: 8 }}>
-                  {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
-                </td>
-                <td style={{ padding: 8, fontWeight: isYou ? 700 : 500 }}>
-                  {e.username}
-                  {isYou && (
-                    <span
+    <div style={{ maxWidth: 720, margin: "8px auto 0" }}>
+      <div style={{ ...card, padding: "22px 24px" }}>
+        <h2
+          style={{ margin: "0 0 2px", fontFamily: "'Montserrat', sans-serif" }}
+        >
+          🏆 Leaderboard
+        </h2>
+        <p style={{ color: theme.textMuted, margin: "0 0 18px" }}>
+          Each player's best session.
+        </p>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr
+              style={{
+                textAlign: "left",
+                color: theme.textMuted,
+                fontSize: "0.72rem",
+                letterSpacing: "0.1em",
+              }}
+            >
+              <th style={{ padding: "0 8px 10px", width: 48 }}>#</th>
+              <th style={{ padding: "0 8px 10px" }}>PLAYER</th>
+              <th style={{ padding: "0 8px 10px", textAlign: "right" }}>
+                BEST SESSION
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((e, i) => {
+              const isYou = e.username === currentUser;
+              return (
+                <tr
+                  key={e.username}
+                  style={{
+                    borderTop: `1px solid ${theme.border}`,
+                    background: isYou ? "rgba(0,194,195,0.12)" : "transparent",
+                  }}
+                >
+                  <td
+                    style={{
+                      padding: "12px 8px",
+                      fontSize: i < 3 ? "1.1rem" : "1rem",
+                    }}
+                  >
+                    {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
+                  </td>
+                  <td
+                    style={{
+                      padding: "12px 8px",
+                      fontWeight: isYou ? 700 : 600,
+                    }}
+                  >
+                    {e.username}
+                    {isYou && (
+                      <span
+                        style={{
+                          marginLeft: 6,
+                          fontSize: "0.75rem",
+                          color: theme.teal,
+                        }}
+                      >
+                        (you)
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ padding: "12px 8px", textAlign: "right" }}>
+                    <strong
                       style={{
-                        marginLeft: 6,
-                        fontSize: "0.75rem",
-                        color: "#059669",
+                        fontFamily: "'Montserrat', sans-serif",
+                        color: theme.yellow,
                       }}
                     >
-                      (you)
+                      {e.points.toLocaleString()}
+                    </strong>
+                    <span style={{ color: theme.textMuted }}>
+                      {" "}
+                      pts · {e.guesses} guesses
                     </span>
-                  )}
-                </td>
-                <td style={{ padding: 8, textAlign: "right" }}>
-                  <strong style={{ fontFamily: "monospace", color: "#059669" }}>
-                    {e.points.toLocaleString()}
-                  </strong>
-                  <span style={{ color: "#6b7280" }}>
-                    {" "}
-                    points in {e.guesses} guesses
-                  </span>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
