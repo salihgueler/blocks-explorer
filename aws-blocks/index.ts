@@ -20,8 +20,10 @@ import {
   isBlocksError,
 } from "@aws-blocks/blocks";
 import { z } from "zod";
+import { LocationMap } from "@blocks-explorer/location-map";
 
 const scope = new Scope("be");
+const maps = new LocationMap();
 
 const ROUNDS_PER_SESSION = 5;
 const MAX_SCORE = 5000;
@@ -277,6 +279,16 @@ async function recordBestSession(session: GameSession): Promise<boolean> {
 export const authApi = auth.createApi();
 
 export const api = new ApiNamespace(scope, "api", (context) => ({
+  /** Returns map configuration — offline SVG for local dev, Google Maps key for deployed. */
+  async getMapConfig() {
+    const descriptor = await maps.getMapDescriptor();
+    return {
+      isOffline: descriptor.offline,
+      googleMapsApiKey: descriptor.offline ? null : descriptor.googleMapsApiKey,
+      attribution: descriptor.offline ? "Offline SVG Map" : "© Google",
+    };
+  },
+
   /**
    * Start a fresh 5-round session. Generates the rounds (with answers) and
    * stores them server-side. Returns only the first round's public view.
@@ -369,12 +381,16 @@ export const api = new ApiNamespace(scope, "api", (context) => ({
       throw e;
     }
 
+    const placeInfo = await maps.reverseGeocode({
+      lat: round.lat,
+      lng: round.lng,
+    });
     const actual = {
       lat: round.lat,
       lng: round.lng,
       country: round.country,
       city: round.city,
-      label: `${round.city}, ${round.country}`,
+      label: placeInfo?.label ?? `${round.city}, ${round.country}`,
     };
 
     const result = {

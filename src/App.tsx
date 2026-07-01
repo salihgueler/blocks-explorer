@@ -1,4 +1,9 @@
 import { CSSProperties, useEffect, useState, useCallback, useRef } from "react";
+import {
+  createLocationMap,
+  type LocationMapViewConfig,
+  type LocationMapHandle,
+} from "@blocks-explorer/location-map/ui";
 import { api, authApi } from "aws-blocks";
 import { AccountMenuBar, onAuthChange } from "@aws-blocks/blocks/ui";
 
@@ -370,48 +375,48 @@ function GameScreen({
   if (!sessionId || !round) {
     return (
       <>
-      <div
-        style={{
-          ...card,
-          textAlign: "center",
-          padding: "56px 28px",
-          maxWidth: 620,
-          margin: "8px auto 0",
-        }}
-      >
-        <div style={{ fontSize: "3rem" }}>🌍</div>
-        <h2
+        <div
           style={{
-            fontFamily: "'Montserrat', sans-serif",
-            fontSize: "2rem",
-            margin: "8px 0",
+            ...card,
+            textAlign: "center",
+            padding: "56px 28px",
+            maxWidth: 620,
+            margin: "8px auto 0",
           }}
         >
-          Ready to explore?
-        </h2>
-        <p
-          style={{
-            color: theme.textMuted,
-            marginBottom: 24,
-            lineHeight: 1.6,
-          }}
-        >
-          Five rounds. Guess each location from its photo — the closer you are,
-          the more points you score.
-        </p>
-        {error && (
-          <p style={{ color: theme.coral, marginBottom: 16 }}>{error}</p>
-        )}
-        <button
-          onClick={startSession}
-          disabled={isLoading}
-          className="btn-coral"
-          style={actionButton}
-        >
-          {isLoading ? "Loading..." : "Start Game"}
-        </button>
-      </div>
-      <ModesSection />
+          <div style={{ fontSize: "3rem" }}>🌍</div>
+          <h2
+            style={{
+              fontFamily: "'Montserrat', sans-serif",
+              fontSize: "2rem",
+              margin: "8px 0",
+            }}
+          >
+            Ready to explore?
+          </h2>
+          <p
+            style={{
+              color: theme.textMuted,
+              marginBottom: 24,
+              lineHeight: 1.6,
+            }}
+          >
+            Five rounds. Guess each location from its photo — the closer you
+            are, the more points you score.
+          </p>
+          {error && (
+            <p style={{ color: theme.coral, marginBottom: 16 }}>{error}</p>
+          )}
+          <button
+            onClick={startSession}
+            disabled={isLoading}
+            className="btn-coral"
+            style={actionButton}
+          >
+            {isLoading ? "Loading..." : "Start Game"}
+          </button>
+        </div>
+        <ModesSection />
       </>
     );
   }
@@ -631,8 +636,7 @@ function GameScreen({
                       marginTop: 2,
                     }}
                   >
-                    {(round.totalRounds - round.roundNumber) +
-                      (result ? 0 : 1)}
+                    {round.totalRounds - round.roundNumber + (result ? 0 : 1)}
                   </div>
                 </div>
               </div>
@@ -801,7 +805,7 @@ function ProgressStrip({
   );
 }
 
-// ─── Map Input (click-to-select using Leaflet on window.L) ──────────────────────
+// ─── Map Input (offline SVG or Amazon Location vector map, driven by getMapConfig) ────────
 function MapClickInput({
   onSelect,
   guess,
@@ -813,93 +817,60 @@ function MapClickInput({
   actual: { lat: number; lng: number } | null;
   locked: boolean;
 }) {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const guessMarkerRef = useRef<any>(null);
-  const actualMarkerRef = useRef<any>(null);
+  const [config, setConfig] = useState<LocationMapViewConfig | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<LocationMapHandle | null>(null);
+
+  // Keep latest inputs in refs so map creation can seed them without
+  // re-creating the map on every change.
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
+  const guessRef = useRef(guess);
+  guessRef.current = guess;
+  const actualRef = useRef(actual);
+  actualRef.current = actual;
   const lockedRef = useRef(locked);
+  lockedRef.current = locked;
 
+  // Fetch map config once on mount
   useEffect(() => {
-    lockedRef.current = locked;
-  }, [locked]);
-
-  useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return;
-    const L = (window as any).L;
-    if (!L) return;
-
-    const map = L.map(mapRef.current).setView([20, 0], 2);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap contributors",
-      maxZoom: 18,
-    }).addTo(map);
-
-    map.on("click", (e: any) => {
-      if (lockedRef.current) return;
-      onSelect({ lat: e.latlng.lat, lng: e.latlng.lng });
-    });
-
-    mapInstanceRef.current = map;
-    return () => {
-      map.stop();
-      map.remove();
-      mapInstanceRef.current = null;
-    };
+    api.getMapConfig().then((cfg) =>
+      setConfig({
+        isOffline: cfg.isOffline,
+        googleMapsApiKey: cfg.googleMapsApiKey,
+      }),
+    );
   }, []);
 
-  // Update guess marker; recenter to the world view when a new round clears it.
+  // Create the block's map view once config + container are ready
   useEffect(() => {
-    const L = (window as any).L;
-    const map = mapInstanceRef.current;
-    if (!L || !map) return;
+    if (!config || !containerRef.current) return;
+    const handle = createLocationMap({
+      config,
+      onSelect: (c) => onSelectRef.current(c),
+    });
+    containerRef.current.appendChild(handle.element);
+    handleRef.current = handle;
+    // Seed current state into the freshly created map
+    handle.setLocked(lockedRef.current);
+    handle.setGuess(guessRef.current);
+    handle.setActual(actualRef.current);
+    return () => {
+      handle.destroy();
+      handleRef.current = null;
+    };
+  }, [config]);
 
-    if (guessMarkerRef.current) {
-      guessMarkerRef.current.remove();
-    }
-    if (guess) {
-      guessMarkerRef.current = L.marker([guess.lat, guess.lng], {
-        icon: L.divIcon({
-          html: "📍",
-          className: "",
-          iconSize: [24, 24],
-          iconAnchor: [12, 24],
-        }),
-      }).addTo(map);
-    } else if (!actual) {
-      map.setView([20, 0], 2, { animate: false });
-    }
+  // Push ongoing state changes to the map
+  useEffect(() => {
+    handleRef.current?.setGuess(guess);
   }, [guess]);
-
-  // Update actual marker
   useEffect(() => {
-    const L = (window as any).L;
-    const map = mapInstanceRef.current;
-    if (!L || !map) return;
-
-    if (actualMarkerRef.current) {
-      actualMarkerRef.current.remove();
-      actualMarkerRef.current = null;
-    }
-    if (actual) {
-      actualMarkerRef.current = L.marker([actual.lat, actual.lng], {
-        icon: L.divIcon({
-          html: "✅",
-          className: "",
-          iconSize: [24, 24],
-          iconAnchor: [12, 12],
-        }),
-      }).addTo(map);
-      if (guess) {
-        map.fitBounds(
-          [
-            [guess.lat, guess.lng],
-            [actual.lat, actual.lng],
-          ],
-          { padding: [50, 50], animate: false },
-        );
-      }
-    }
+    handleRef.current?.setActual(actual);
   }, [actual]);
+  useEffect(() => {
+    handleRef.current?.setLocked(locked);
+  }, [locked]);
 
   return (
     <div style={{ ...card, padding: 12 }}>
@@ -922,19 +893,28 @@ function MapClickInput({
           📍 DROP A PIN
         </h3>
         <span style={{ fontSize: "0.78rem", color: theme.textMuted }}>
-          Click the panorama location
+          {config && !config.isOffline
+            ? "Click the map to guess"
+            : "Click a country to guess"}
         </span>
       </div>
-      <div
-        ref={mapRef}
-        style={{
-          width: "100%",
-          height: 380,
-          borderRadius: 10,
-          border: `1px solid ${theme.border}`,
-          overflow: "hidden",
-        }}
-      />
+      {config === null ? (
+        <div
+          style={{
+            width: "100%",
+            height: 380,
+            borderRadius: 10,
+            border: `1px solid ${theme.border}`,
+            display: "grid",
+            placeItems: "center",
+            color: theme.textMuted,
+          }}
+        >
+          Loading map...
+        </div>
+      ) : (
+        <div ref={containerRef} style={{ width: "100%" }} />
+      )}
     </div>
   );
 }

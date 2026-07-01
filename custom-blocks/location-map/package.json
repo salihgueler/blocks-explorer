@@ -1,0 +1,24 @@
+{
+  "name": "@blocks-explorer/location-map",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "browser": "./browser.ts",
+      "cdk": "./cdk.ts",
+      "aws-runtime": "./aws.ts",
+      "types": "./types.ts",
+      "default": "./mock.ts"
+    },
+    "./cdk": "./cdk.ts",
+    "./ui": "./ui.ts"
+  },
+  "dependencies": {
+    "@googlemaps/js-api-loader": "^2.1.1",
+    "aws-cdk-lib": "2.260.0",
+    "constructs": "^10.6.0"
+  },
+  "devDependencies": {
+    "@types/google.maps": "^3.65.2"
+  }
+}

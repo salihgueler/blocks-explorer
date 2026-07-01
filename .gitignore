@@ -6,3 +6,7 @@ cdk.out/
 aws-blocks/client.js
 aws-blocks/blocks.spec.json
 .bb-data/
+.env
+.env.*
+!.env.example
+.hosting
