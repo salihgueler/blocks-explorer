@@ -847,7 +847,7 @@ function MapClickInput({
     if (!config || !containerRef.current) return;
     const handle = createLocationMap({
       config,
-      onSelect: (c) => onSelectRef.current(c),
+      onSelect: (c: { lat: number; lng: number }) => onSelectRef.current(c),
     });
     containerRef.current.appendChild(handle.element);
     handleRef.current = handle;

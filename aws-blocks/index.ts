@@ -23,7 +23,7 @@ import { z } from "zod";
 import { LocationMap } from "@blocks-explorer/location-map";
 
 const scope = new Scope("be");
-const maps = new LocationMap();
+const maps = new LocationMap(scope, "maps");
 
 const ROUNDS_PER_SESSION = 5;
 const MAX_SCORE = 5000;

@@ -6,7 +6,6 @@ import {
   BlocksStack,
   SandboxDisableDeletionProtection,
 } from "@aws-blocks/blocks/cdk";
-import { LocationMapCdk } from "@blocks-explorer/location-map/cdk";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { getSandboxId } from "./scripts/sandbox-id.js";
@@ -50,16 +49,9 @@ if (!sandboxMode) {
   });
 }
 
-// Wire the custom LocationMap block into the backend Lambda. Google Maps is an
-// external provider (no AWS map resource to provision), so the block's CDK
-// construct just forwards the Google Maps API key — read from the environment,
-// which `npm run deploy` loads from `.env.production` (never committed). Local
-// dev needs no key; it uses the offline SVG map.
-const locationMap = new LocationMapCdk(blocksStack, "LocationMap", {
-  googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
-});
-locationMap.configureBackend(blocksStack.handler);
-
+// The custom LocationMap block (defined in custom-blocks/location-map/) auto-wires
+// itself during CDK synth via `this.handler.addEnvironment(...)` when index.ts is
+// imported under the `cdk` condition. No explicit wiring needed here.
 // Hard destroy: force every production resource — including retained data
 // stores like the DynamoDB tables — to be deletable so `npm run hard-destroy`
 // can tear the whole stack down. Only takes effect when explicitly requested

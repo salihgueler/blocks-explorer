@@ -23,6 +23,7 @@
     "preview": "vite preview",
     "deploy": "tsx aws-blocks/scripts/deploy.ts",
     "destroy": "tsx aws-blocks/scripts/destroy.ts",
+    "hard-destroy": "tsx -C cdk aws-blocks/scripts/hard-destroy.ts",
     "vendorize": "blocks-vendorize"
   },
   "dependencies": {

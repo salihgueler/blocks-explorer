@@ -29,11 +29,13 @@ Open http://localhost:3000 after `npm run dev`.
 
 ## Project Structure
 
-| Path                  | Purpose                                                    |
-| --------------------- | ---------------------------------------------------------- |
-| `aws-blocks/index.ts` | Backend: auth, session + leaderboard data models, game API |
-| `src/App.tsx`         | Frontend: session game UI, map, and leaderboard            |
-| `src/main.tsx`        | React entry point                                          |
+| Path                          | Purpose                                                        |
+| ----------------------------- | -------------------------------------------------------------- |
+| `aws-blocks/index.ts`         | Backend: auth, session + leaderboard data models, game API     |
+| `src/App.tsx`                 | Frontend: session game UI, map, and leaderboard                |
+| `src/main.tsx`                | React entry point                                              |
+| `custom-blocks/location-map/` | Custom Building Block: interactive map for dropping guess pins |
+| `public/images/`              | Round photos the game asks players to locate                   |
 
 ## API
 
@@ -50,18 +52,21 @@ JSON-RPC transport is generated and intentionally invisible.
 
 - **AuthBasic** — sign up / sign in / sign out with JWT sessions
 - **DistributedTable** — two tables: game sessions (with server-side answers) and the leaderboard, validated with Zod schemas
+- **location-map** — a custom Building Block (`custom-blocks/location-map/`) that renders the interactive map for dropping guess pins, mocking locally and deploying to AWS like any other block
 - **Server-authoritative scoring** — answers never reach the client until a round is guessed
 - **Optimistic locking** — `ifFieldEquals` on the round pointer rejects duplicate or concurrent guess submissions
 
 ## Commands
 
-| Command             | Description                                   |
-| ------------------- | --------------------------------------------- |
-| `npm run dev`       | Backend + React dev server (port 3000)        |
-| `npm run typecheck` | TypeScript type checking                      |
-| `npm run build`     | Type-check + production build                 |
-| `npm run sandbox`   | Deploy backend to AWS, serve frontend locally |
-| `npm run deploy`    | Full production deploy                        |
+| Command                | Description                                                                             |
+| ---------------------- | --------------------------------------------------------------------------------------- |
+| `npm run dev`          | Backend + React dev server (port 3000)                                                  |
+| `npm run typecheck`    | TypeScript type checking                                                                |
+| `npm run build`        | Type-check + production build                                                           |
+| `npm run sandbox`      | Deploy backend to AWS, serve frontend locally                                           |
+| `npm run deploy`       | Full production deploy                                                                   |
+| `npm run destroy`      | Tear down the production stack, retaining DynamoDB data                                 |
+| `npm run hard-destroy` | Destroy the production stack **including** all DynamoDB tables (irreversible data loss) |
 
 ## For Agents
 

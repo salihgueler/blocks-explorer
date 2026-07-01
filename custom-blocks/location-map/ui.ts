@@ -274,7 +274,7 @@ function createGoogleMap(options: CreateLocationMapOptions): LocationMapHandle {
         mapTypeControl: false,
         fullscreenControl: false,
       });
-      map.addListener("click", (e: google.maps.MapMouseEvent) => {
+      map!.addListener("click", (e: google.maps.MapMouseEvent) => {
         if (locked || !e.latLng) return;
         options.onSelect({ lat: e.latLng.lat(), lng: e.latLng.lng() });
       });
