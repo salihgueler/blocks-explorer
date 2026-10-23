@@ -9,4 +9,4 @@ aws-blocks/blocks.spec.json
 .env
 .env.*
 !.env.example
-.hosting
+.hosting/
