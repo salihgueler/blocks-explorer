@@ -8,4 +8,7 @@ startDevServer({
   backendPath: join(__dirname, '..', 'index.ts'),
   frontendCommand: 'npx vite --port 3100 --strictPort',
   frontendPort: 3100,
+}).catch((error) => {
+  console.error(error);
+  process.exit(1);
 });
