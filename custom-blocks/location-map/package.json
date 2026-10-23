@@ -4,16 +4,16 @@
   "type": "module",
   "exports": {
     ".": {
+      "browser": "./src/index.browser.ts",
       "cdk": "./src/index.cdk.ts",
-      "browser": "./src/browser.ts",
-      "aws-runtime": "./src/index.ts",
+      "aws-runtime": "./src/index.aws.ts",
+      "types": "./src/index.mock.ts",
       "default": "./src/index.mock.ts"
     },
     "./ui": "./ui.ts"
   },
   "dependencies": {
-    "@aws-blocks/core": "*",
-    "@aws-blocks/blocks": "*",
+    "@aws-blocks/core": "0.5.0",
     "@googlemaps/js-api-loader": "^2.1.1"
   },
   "devDependencies": {

@@ -8,7 +8,7 @@ on the leaderboard.
 ## Getting Started
 
 ```bash
-npm run dev          # Backend + React frontend (concurrent)
+npm run dev          # Local backend + React frontend on one port
 npm run build        # Type-check + production build
 npm run sandbox      # Deploy backend to AWS, serve frontend locally
 ```

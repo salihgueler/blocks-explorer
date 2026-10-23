@@ -1,14 +1,9 @@
 import * as cdk from "aws-cdk-lib";
-import { RemovalPolicies, Mixins } from "aws-cdk-lib";
 
-import {
-  Hosting,
-  BlocksStack,
-  SandboxDisableDeletionProtection,
-} from "@aws-blocks/blocks/cdk";
+import { Hosting, BlocksStack, BlocksPresets } from "@aws-blocks/blocks/cdk";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { getSandboxId } from "./scripts/sandbox-id.js";
+import { getStackName } from "@aws-blocks/blocks/scripts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -18,22 +13,25 @@ const sandboxMode = app.node.tryGetContext("sandboxMode") === "true";
 const hardDestroy = app.node.tryGetContext("hardDestroy") === "true";
 const projectRoot = app.node.tryGetContext("projectRoot") || process.cwd();
 
-const stackName = sandboxMode
-  ? `blocks-explorer-stack-${getSandboxId(projectRoot)}`
-  : "blocks-explorer-stack-prod";
+// Stack identity comes from .blocks/config.json `stackId`. It is set to
+// "blocks-explorer-stack" so the production stack keeps its existing name
+// (blocks-explorer-stack-prod) and sandboxes keep blocks-explorer-stack-<id>.
+const stackName = getStackName({ sandbox: sandboxMode, projectRoot });
+
+// Hard destroy reuses the sandbox preset: every resource, including the
+// retained DynamoDB tables, becomes deletable. Only applies when
+// `npm run hard-destroy` passes `--context hardDestroy=true`; a normal
+// deploy/destroy keeps the production preset's Retain policies.
 export const blocksStack = await BlocksStack.create(app, stackName, {
   backendHandlerPath: join(__dirname, "index.handler.ts"),
   backendCDKPath: join(__dirname, "index.ts"),
+  defaults:
+    sandboxMode || hardDestroy
+      ? BlocksPresets.sandbox
+      : BlocksPresets.production,
 });
 
 if (sandboxMode) {
-  // Make all resources deletable so sandbox:destroy can clean up the entire stack.
-  // This overrides removal policies and deletion protection (e.g. RDS) for every
-  // resource in the stack, including any you add below.
-  // Remove these lines if you want to manage teardown behavior yourself.
-  RemovalPolicies.of(blocksStack).destroy();
-  Mixins.of(blocksStack).apply(new SandboxDisableDeletionProtection());
-
   // Tell the runtime that cookies need cross-domain attributes (frontend on
   // localhost, API on API Gateway — different registrable domains).
   blocksStack.handler.addEnvironment("BLOCKS_SANDBOX", "true");
@@ -49,15 +47,5 @@ if (!sandboxMode) {
   });
 }
 
-// The custom LocationMap block (defined in custom-blocks/location-map/) auto-wires
-// itself during CDK synth via `this.handler.addEnvironment(...)` when index.ts is
-// imported under the `cdk` condition. No explicit wiring needed here.
-// Hard destroy: force every production resource — including retained data
-// stores like the DynamoDB tables — to be deletable so `npm run hard-destroy`
-// can tear the whole stack down. Only takes effect when explicitly requested
-// via `--context hardDestroy=true`; the normal deploy/destroy keep the
-// data-protecting Retain policies intact.
-if (hardDestroy) {
-  RemovalPolicies.of(blocksStack).destroy();
-  Mixins.of(blocksStack).apply(new SandboxDisableDeletionProtection());
-}
+// The custom LocationMap block (custom-blocks/location-map/) wires itself
+// during CDK synth when index.ts is imported under the `cdk` condition.
