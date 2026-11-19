@@ -14,6 +14,7 @@
 import {
   Scope,
   ApiNamespace,
+  ApiError,
   DistributedTable,
   DistributedTableErrors,
   AuthBasic,
@@ -327,15 +328,27 @@ export const api = new ApiNamespace(scope, "api", (context) => ({
     const user = await auth.requireAuth(context);
 
     const session = await sessions.get({ sessionId });
-    if (!session) throw new Error("Session not found");
+    // ApiError (not a plain Error) so the message reaches the client: since
+    // Blocks 0.7.0 an unbranded throw surfaces as a generic 500 "Internal error".
+    if (!session)
+      throw new ApiError("Session not found", 404, {
+        name: "SessionNotFoundException",
+      });
     if (session.username !== user.username)
-      throw new Error("This session belongs to another player");
+      throw new ApiError("This session belongs to another player", 403, {
+        name: "SessionForbiddenException",
+      });
     if (session.status !== "active")
-      throw new Error("This session is already complete");
+      throw new ApiError("This session is already complete", 409, {
+        name: "SessionCompletedException",
+      });
 
     const index = session.currentRound;
     const round = session.rounds[index];
-    if (!round) throw new Error("No active round to guess");
+    if (!round)
+      throw new ApiError("No active round to guess", 409, {
+        name: "NoActiveRoundException",
+      });
 
     const distanceKm = haversineDistance(
       guessLat,
@@ -376,7 +389,9 @@ export const api = new ApiNamespace(scope, "api", (context) => ({
       });
     } catch (e) {
       if (isBlocksError(e, DistributedTableErrors.ConditionalCheckFailed)) {
-        throw new Error("That round was already submitted");
+        throw new ApiError("That round was already submitted", 409, {
+          name: "RoundAlreadySubmittedException",
+        });
       }
       throw e;
     }
