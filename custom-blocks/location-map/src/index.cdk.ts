@@ -1,5 +1,5 @@
 // src/index.cdk.ts — runs during CDK synth
-import { Scope, synthGuard } from '@aws-blocks/core/cdk';
+import { Scope, registerConfig, synthGuard } from '@aws-blocks/core/cdk';
 import type { ScopeParent } from '@aws-blocks/core';
 import type { LocationMapOptions } from './types.js';
 
@@ -10,9 +10,12 @@ export class LocationMap extends Scope {
   constructor(scope: ScopeParent, id: string, options?: LocationMapOptions) {
     super(id, { parent: scope });
 
-    // Inject the Google Maps API key into the Lambda environment.
-    // The aws-runtime layer reads this via process.env.GOOGLE_MAPS_API_KEY.
-    this.handler.addEnvironment(
+    // Register the Google Maps API key as Blocks config. Every compute loads
+    // it into process.env at cold start (registerConfig replaced
+    // `this.handler.addEnvironment` in 0.8.0), so the aws-runtime layer still
+    // reads it via process.env.GOOGLE_MAPS_API_KEY.
+    registerConfig(
+      this,
       'GOOGLE_MAPS_API_KEY',
       options?.googleMapsApiKey ?? process.env.GOOGLE_MAPS_API_KEY ?? ''
     );
