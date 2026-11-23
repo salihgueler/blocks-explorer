@@ -8,18 +8,18 @@
  * sent to the client until a round has been guessed. The leaderboard tracks
  * each player's single best session ("X points in Y guesses").
  *
- * Uses AuthBasic + DistributedTable (no Realtime needed).
+ * Uses Auth + KVStore (no Realtime needed).
  */
 
 import {
   Scope,
   ApiNamespace,
   ApiError,
-  DistributedTable,
-  DistributedTableErrors,
-  AuthBasic,
+  KVStore,
+  KVStoreErrors,
+  Auth,
   isBlocksError,
-} from "@aws-blocks/blocks";
+} from "aws-cdk-blocks";
 import { z } from "zod";
 import { LocationMap } from "@blocks-explorer/location-map";
 
@@ -30,9 +30,26 @@ const ROUNDS_PER_SESSION = 5;
 const MAX_SCORE = 5000;
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
-const auth = new AuthBasic(scope, "auth", {
-  sessionDuration: 86400 * 7,
-  passwordPolicy: { minLength: 6 },
+// Migrated from AuthBasic (same id "auth"). AuthBasic users cannot be moved to
+// the Cognito user pool that Auth creates: every existing player signs up
+// again after the first deploy of this block. The old users/codes tables and
+// jwt-secret parameter are retained (orphaned) under BlocksPresets.production.
+// Sign-up now confirms the email with a code, and Cognito's default sender
+// sends at most 50 emails a day. The four character-class rules are off to
+// keep AuthBasic's policy (minimum length only).
+const auth = new Auth(scope, "auth", {
+  session: {
+    ttlSeconds: 86400 * 7,
+  },
+  emailPassword: {
+    passwordPolicy: {
+      minLength: 6,
+      requireUppercase: false,
+      requireLowercase: false,
+      requireDigits: false,
+      requireSymbols: false,
+    },
+  },
 });
 
 // ─── Data: Sessions (answers held server-side) ──────────────────────────────────
@@ -67,7 +84,7 @@ const sessionSchema = z.object({
 type SessionRound = z.infer<typeof roundSchema>;
 type GameSession = z.infer<typeof sessionSchema>;
 
-const sessions = new DistributedTable(scope, "sessions", {
+const sessions = new KVStore(scope, "sessions", {
   schema: sessionSchema,
   key: { partitionKey: "sessionId" },
 });
@@ -82,7 +99,7 @@ const leaderboardSchema = z.object({
   achievedAt: z.number(),
 });
 
-const leaderboard = new DistributedTable(scope, "lb", {
+const leaderboard = new KVStore(scope, "lb", {
   schema: leaderboardSchema,
   key: { partitionKey: "pk", sortKey: "sk" },
 });
@@ -265,14 +282,17 @@ async function recordBestSession(session: GameSession): Promise<boolean> {
   const existing = await leaderboard.get({ pk: "GLOBAL", sk });
   if (existing && existing.points >= session.accumulatedScore) return false;
 
-  await leaderboard.put({
-    pk: "GLOBAL",
-    sk,
-    username: session.username,
-    points: session.accumulatedScore,
-    guesses: session.guessesMade,
-    achievedAt: Date.now(),
-  });
+  await leaderboard.put(
+    { pk: "GLOBAL", sk },
+    {
+      pk: "GLOBAL",
+      sk,
+      username: session.username,
+      points: session.accumulatedScore,
+      guesses: session.guessesMade,
+      achievedAt: Date.now(),
+    },
+  );
   return true;
 }
 
@@ -309,7 +329,9 @@ export const api = new ApiNamespace(scope, "api", (context) => ({
       createdAt: Date.now(),
     };
 
-    await sessions.put(session, { ifNotExists: true });
+    await sessions.put({ sessionId: session.sessionId }, session, {
+      ifNotExists: true,
+    });
 
     return {
       sessionId: session.sessionId,
@@ -384,11 +406,11 @@ export const api = new ApiNamespace(scope, "api", (context) => ({
     // Optimistic lock: only commit if the stored pointer is still at `index`.
     // A concurrent / duplicate submit will have already advanced it.
     try {
-      await sessions.put(updatedSession, {
+      await sessions.put({ sessionId: updatedSession.sessionId }, updatedSession, {
         ifFieldEquals: { currentRound: index },
       });
     } catch (e) {
-      if (isBlocksError(e, DistributedTableErrors.ConditionalCheckFailed)) {
+      if (isBlocksError(e, KVStoreErrors.ConditionalCheckFailed)) {
         throw new ApiError("That round was already submitted", 409, {
           name: "RoundAlreadySubmittedException",
         });
@@ -442,7 +464,7 @@ export const api = new ApiNamespace(scope, "api", (context) => ({
       achievedAt: number;
     }> = [];
 
-    for await (const entry of leaderboard.query({
+    for await (const { value: entry } of leaderboard.query({
       where: { pk: { equals: "GLOBAL" } },
     })) {
       rows.push({

@@ -1,4 +1,4 @@
-import { createLambdaHandler } from "@aws-blocks/blocks/lambda-handler";
+import { createLambdaHandler } from "aws-cdk-blocks/lambda-handler";
 
 // createLambdaHandler expects a lazy factory so Blocks can load env config
 // from S3 before the backend module is imported (see its JSDoc).

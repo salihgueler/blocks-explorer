@@ -1,6 +1,6 @@
 // Framework-agnostic map UI for the LocationMap block.
 //
-// Mirrors the `@aws-blocks/blocks/ui` convention: a factory that returns a DOM
+// Mirrors the `aws-cdk-blocks/ui` convention: a factory that returns a DOM
 // node plus a small imperative handle, so it works from React/Vue/vanilla. The
 // block owns the whole map experience here — offline SVG (bundled, no network)
 // and Google Maps — selected by the `config` the caller passes in. No host

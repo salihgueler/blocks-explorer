@@ -4,8 +4,8 @@ import {
   type LocationMapViewConfig,
   type LocationMapHandle,
 } from "@blocks-explorer/location-map/ui";
-import { api, authApi } from "aws-blocks";
-import { AccountMenuBar, onAuthChange } from "@aws-blocks/blocks/ui";
+import { api, authApi } from "cdk-blocks";
+import { AccountMenuBar, onAuthChange } from "aws-cdk-blocks/ui";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type User = { username: string; userId: string };
