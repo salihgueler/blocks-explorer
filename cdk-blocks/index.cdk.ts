@@ -5,10 +5,10 @@ import {
   BlocksStack,
   BlocksPresets,
   registerConfig,
-} from "@aws-blocks/blocks/cdk";
+} from "aws-cdk-blocks/cdk";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { getStackName } from "@aws-blocks/blocks/scripts";
+import { getStackName } from "aws-cdk-blocks/scripts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -18,7 +18,7 @@ const sandboxMode = app.node.tryGetContext("sandboxMode") === "true";
 const hardDestroy = app.node.tryGetContext("hardDestroy") === "true";
 const projectRoot = app.node.tryGetContext("projectRoot") || process.cwd();
 
-// Stack identity comes from .blocks/config.json `stackId`. It is set to
+// Stack identity comes from .cdk-blocks/config.json `stackId`. It is set to
 // "blocks-explorer-stack" so the production stack keeps its existing name
 // (blocks-explorer-stack-prod) and sandboxes keep blocks-explorer-stack-<id>.
 const stackName = getStackName({ sandbox: sandboxMode, projectRoot });

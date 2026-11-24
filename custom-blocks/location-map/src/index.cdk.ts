@@ -1,6 +1,6 @@
 // src/index.cdk.ts — runs during CDK synth
-import { Scope, registerConfig, synthGuard } from '@aws-blocks/core/cdk';
-import type { ScopeParent } from '@aws-blocks/core';
+import { Scope, registerConfig, synthGuard } from '@aws-cdk-blocks/core/cdk';
+import type { ScopeParent } from '@aws-cdk-blocks/core';
 import type { LocationMapOptions } from './types.js';
 
 // Re-export types for consumers

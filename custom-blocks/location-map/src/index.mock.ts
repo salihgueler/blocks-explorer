@@ -1,7 +1,7 @@
 // src/index.mock.ts — runs during local dev, no network needed
-import { Scope } from '@aws-blocks/core';
-import type { ScopeParent } from '@aws-blocks/core';
-import { getMockDataDir } from '@aws-blocks/core/bb-utils';
+import { Scope } from '@aws-cdk-blocks/core';
+import type { ScopeParent } from '@aws-cdk-blocks/core';
+import { getMockDataDir } from '@aws-cdk-blocks/core/bb-utils';
 import type { Coordinates, GeocoderResult, MapDescriptor, LocationMapOptions } from './types.js';
 import { reverseGeocodeFixture } from './geocode.js';
 

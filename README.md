@@ -1,6 +1,6 @@
 # BlocksExplorer
 
-A geography guessing game built with AWS Blocks. Sign in, then play a session of
+A geography guessing game built with AWS CDK Blocks. Sign in, then play a session of
 five rounds: guess where each photo was taken by dropping a pin on the map. The
 closer your guess, the more points you score. Each player's best session is ranked
 on the leaderboard.
@@ -31,7 +31,7 @@ Open http://localhost:3000 after `npm run dev`.
 
 | Path                          | Purpose                                                        |
 | ----------------------------- | -------------------------------------------------------------- |
-| `aws-blocks/index.ts`         | Backend: auth, session + leaderboard data models, game API     |
+| `cdk-blocks/index.ts`         | Backend: auth, session + leaderboard data models, game API     |
 | `src/App.tsx`                 | Frontend: session game UI, map, and leaderboard                |
 | `src/main.tsx`                | React entry point                                              |
 | `custom-blocks/location-map/` | Custom Building Block: interactive map for dropping guess pins |
@@ -39,7 +39,7 @@ Open http://localhost:3000 after `npm run dev`.
 
 ## API
 
-Methods are called via the typed client (`import { api } from 'aws-blocks'`); the
+Methods are called via the typed client (`import { api } from 'cdk-blocks'`); the
 JSON-RPC transport is generated and intentionally invisible.
 
 | Method                             | Description                                                                                                                                                                                                                                                                                                |
@@ -50,8 +50,8 @@ JSON-RPC transport is generated and intentionally invisible.
 
 ## What's Included
 
-- **AuthBasic** — sign up / sign in / sign out with JWT sessions
-- **DistributedTable** — two tables: game sessions (with server-side answers) and the leaderboard, validated with Zod schemas
+- **Auth** — sign up (email code confirmation) / sign in / sign out, backed by a Cognito user pool when deployed
+- **KVStore** — two tables: game sessions (with server-side answers) and the leaderboard, validated with Zod schemas
 - **location-map** — a custom Building Block (`custom-blocks/location-map/`) that renders the interactive map for dropping guess pins, mocking locally and deploying to AWS like any other block
 - **Server-authoritative scoring** — answers never reach the client until a round is guessed
 - **Optimistic locking** — `ifFieldEquals` on the round pointer rejects duplicate or concurrent guess submissions
@@ -70,14 +70,14 @@ JSON-RPC transport is generated and intentionally invisible.
 
 ## For Agents
 
-Full Building Block documentation: `node_modules/@aws-blocks/blocks/README.md`. The
-block catalog and per-block docs live under `node_modules/@aws-blocks/blocks/docs/`.
+Full Building Block documentation: `node_modules/aws-cdk-blocks/README.md`. The
+block catalog and per-block docs live under `node_modules/aws-cdk-blocks/docs/`.
 
 **Do not use local files or in-memory storage** — use Building Blocks for all data
-persistence and cloud abstractions (they mock locally to `.bb-data/` and deploy to
+persistence and cloud abstractions (they mock locally to `.cdk-blocks/local/data/` and deploy to
 AWS automatically).
 
-Start in `aws-blocks/index.ts` (backend) and `src/App.tsx` (frontend). The API
+Start in `cdk-blocks/index.ts` (backend) and `src/App.tsx` (frontend). The API
 transport (JSON-RPC) is auto-generated and intentionally invisible — import and call
 the typed `api`/`authApi` directly instead of curling endpoints. Verify changes by
 running `npm run dev` and playing through the app, plus `npm run build` for a
